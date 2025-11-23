@@ -69,36 +69,6 @@ export function useTokenBalances() {
               )
             }
           }
-
-          // Also check native token balance
-          try {
-            const { createPublicClient, http } = await import('viem')
-            const publicClient = createPublicClient({
-              chain,
-              transport: http(),
-            })
-
-            const balance = await publicClient.getBalance({
-              address: address as `0x${string}`
-            })
-
-            if (balance > 0n) {
-              allBalances.push({
-                chainId: chain.id,
-                chainName: chain.name,
-                address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // Special address for native token
-                symbol: chain.nativeCurrency.symbol,
-                balance: formatUnits(balance, chain.nativeCurrency.decimals),
-                rawBalance: balance,
-                decimals: chain.nativeCurrency.decimals,
-              })
-            }
-          } catch (err) {
-            console.error(
-              `Error fetching native balance on ${chain.name}:`,
-              err
-            )
-          }
         }
 
         setBalances(allBalances)

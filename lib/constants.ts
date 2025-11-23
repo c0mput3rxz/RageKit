@@ -68,24 +68,17 @@ export const STABLECOINS: Record<
   ],
 }
 
-// Common degen tokens (feel free to expand this list)
+// Focus on Base tokens only (BRETT and DEGEN)
 export const DEGEN_TOKENS: Record<
   number,
   { address: string; symbol: string; decimals: number }[]
 > = {
-  1: [
-    {
-      address: '0x6982508145454Ce325dDbE47a25d4ec3d2311933',
-      symbol: 'PEPE',
-      decimals: 18,
-    },
-    {
-      address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE',
-      symbol: 'SHIB',
-      decimals: 18,
-    },
-  ],
   8453: [
+    {
+      address: '0x532f27101965dd16442e59d40670faf5ebb142e4',
+      symbol: 'BRETT',
+      decimals: 18,
+    },
     {
       address: '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed',
       symbol: 'DEGEN',

@@ -22,7 +22,7 @@ export function PrivyProvider({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: 'dark',
           accentColor: '#ef4444',
-          logo: '/ragekit-logo.svg',
+          logo: '/RageQuitLogo.png',
         },
         loginMethods: ['email', 'wallet', 'google'],
         embeddedWallets: {

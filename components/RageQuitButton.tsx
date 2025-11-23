@@ -5,6 +5,8 @@ import { useAccount, useWalletClient, useSwitchChain, usePublicClient } from 'wa
 import { type TokenBalance } from '@/hooks/useTokenBalances'
 import { getSwapTransaction, getApproveTransaction, checkAllowance } from '@/lib/1inch'
 import { STABLECOINS } from '@/lib/constants'
+import { useRageQuitStore } from '@/stores/useRageQuitStore'
+import { parseUnits } from 'viem'
 
 interface RageQuitButtonProps {
   balances: TokenBalance[]
@@ -23,14 +25,18 @@ export function RageQuitButton({
   const [status, setStatus] = useState<string>('')
   const [progress, setProgress] = useState(0)
 
+  const { getAllSelected, clearSelections } = useRageQuitStore()
+
   async function executeRageQuit() {
     if (!address || !walletClient) {
       setStatus('Please connect your wallet')
       return
     }
 
-    if (balances.length === 0) {
-      setStatus('No tokens to swap')
+    const selectedTokens = getAllSelected()
+
+    if (selectedTokens.length === 0) {
+      setStatus('No tokens selected. Please select tokens to swap.')
       return
     }
 
@@ -39,11 +45,28 @@ export function RageQuitButton({
     setProgress(0)
 
     try {
-      const totalSteps = balances.length * 2 // Approve + swap for each token
+      const totalSteps = selectedTokens.length * 2 // Approve + swap for each token
       let currentStep = 0
 
+      // Match selected tokens with their full balance data
+      const tokensToSwap = selectedTokens.map(selected => {
+        const fullBalance = balances.find(
+          b => b.chainId === selected.chainId && b.address === selected.address
+        )
+        if (!fullBalance) return null
+
+        // Calculate the amount to swap in raw units
+        const decimals = fullBalance.decimals || 18
+        const amountToSwap = parseUnits(selected.selectedAmount, decimals)
+
+        return {
+          ...fullBalance,
+          rawBalance: amountToSwap,
+        }
+      }).filter(Boolean) as TokenBalance[]
+
       // Group balances by chain
-      const balancesByChain = balances.reduce((acc, balance) => {
+      const balancesByChain = tokensToSwap.reduce((acc, balance) => {
         if (!acc[balance.chainId]) {
           acc[balance.chainId] = []
         }
@@ -162,6 +185,9 @@ export function RageQuitButton({
       setStatus('RageQuit complete! 🎉')
       setProgress(100)
 
+      // Clear selections after successful rage quit
+      clearSelections()
+
       if (onComplete) {
         setTimeout(() => {
           onComplete()
@@ -179,17 +205,19 @@ export function RageQuitButton({
     }
   }
 
+  const selectedCount = getAllSelected().length
+
   return (
     <div className="flex flex-col items-center gap-6 w-full">
       <button
         onClick={executeRageQuit}
-        disabled={isExecuting || balances.length === 0}
+        disabled={isExecuting || selectedCount === 0}
         className="group relative w-full py-8 text-3xl font-black text-white bg-linear-to-r from-red-600 via-red-500 to-orange-600 rounded-2xl shadow-2xl hover:shadow-red-500/50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 overflow-hidden"
       >
         {/* Animated background */}
         <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
 
-        <span className="relative flex items-center justify-center gap-3">
+        <span className="relative flex flex-col items-center justify-center gap-1">
           {isExecuting ? (
             <>
               <span className="animate-spin text-4xl">🧨</span>
@@ -197,8 +225,20 @@ export function RageQuitButton({
             </>
           ) : (
             <>
-              <span className="group-hover:animate-bounce">🧨</span>
-              <span>RAGEQUIT</span>
+              <span className="flex items-center gap-3">
+                <span className="group-hover:animate-bounce">🧨</span>
+                <span>RAGEQUIT</span>
+              </span>
+              {selectedCount > 0 && (
+                <span className="text-sm font-semibold text-red-200">
+                  {selectedCount} token{selectedCount !== 1 ? 's' : ''} selected
+                </span>
+              )}
+              {selectedCount === 0 && (
+                <span className="text-sm font-medium text-red-200/60">
+                  Select tokens to rage quit
+                </span>
+              )}
             </>
           )}
         </span>
