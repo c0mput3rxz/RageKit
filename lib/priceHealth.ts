@@ -1,5 +1,4 @@
 // 1inch price API integration for price health data
-import { CHAIN_ID_TO_1INCH } from './constants'
 
 interface TokenPriceResponse {
   price: string
@@ -14,19 +13,14 @@ export async function get24hPriceChange(
   tokenAddress: string
 ): Promise<number | null> {
   try {
-    const chain1inch = CHAIN_ID_TO_1INCH[chainId]
-    if (!chain1inch) return null
-
     const response = await fetch(
-      `https://api.1inch.dev/price/v1.1/${chain1inch}/${tokenAddress}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_1INCH_API_KEY || ''}`,
-        },
-      }
+      `/api/price?chainId=${chainId}&tokenAddress=${tokenAddress}`
     )
 
-    if (!response.ok) return null
+    if (!response.ok) {
+      console.error('Price API error:', response.status, await response.text())
+      return null
+    }
 
     const data: TokenPriceResponse = await response.json()
 
