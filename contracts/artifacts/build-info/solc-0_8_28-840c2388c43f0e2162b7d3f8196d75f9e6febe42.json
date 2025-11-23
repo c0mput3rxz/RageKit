@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-840c2388c43f0e2162b7d3f8196d75f9e6febe42",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/RageQuitCounter.sol": "project/contracts/RageQuitCounter.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/RageQuitCounter.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.28;\n\n/**\n * @title RageQuitCounter\n * @notice Tracks the number of times users have executed a RageQuit\n * @dev Simple counter contract to record user RageQuit statistics\n */\ncontract RageQuitCounter {\n    // Mapping from user address to their RageQuit count\n    mapping(address => uint256) public rageQuitCount;\n\n    // Total number of RageQuits across all users\n    uint256 public totalRageQuits;\n\n    // Events\n    event RageQuitRecorded(address indexed user, uint256 newCount, uint256 timestamp);\n    event BatchRageQuitRecorded(address indexed user, uint256 count, uint256 newTotal, uint256 timestamp);\n\n    /**\n     * @notice Record a single RageQuit for the caller\n     * @dev Increments the caller's counter and emits an event\n     */\n    function recordRageQuit() external {\n        rageQuitCount[msg.sender]++;\n        totalRageQuits++;\n\n        emit RageQuitRecorded(msg.sender, rageQuitCount[msg.sender], block.timestamp);\n    }\n\n    /**\n     * @notice Record multiple RageQuits at once (e.g., for batch swaps)\n     * @param count Number of tokens swapped in this RageQuit session\n     * @dev Useful for tracking multi-token RageQuits\n     */\n    function recordBatchRageQuit(uint256 count) external {\n        require(count > 0, \"Count must be greater than 0\");\n\n        rageQuitCount[msg.sender] += count;\n        totalRageQuits += count;\n\n        emit BatchRageQuitRecorded(msg.sender, count, rageQuitCount[msg.sender], block.timestamp);\n    }\n\n    /**\n     * @notice Get the RageQuit count for a specific user\n     * @param user Address of the user to query\n     * @return The number of times the user has RageQuit\n     */\n    function getRageQuitCount(address user) external view returns (uint256) {\n        return rageQuitCount[user];\n    }\n\n    /**\n     * @notice Get the RageQuit count for the caller\n     * @return The number of times the caller has RageQuit\n     */\n    function getMyRageQuitCount() external view returns (uint256) {\n        return rageQuitCount[msg.sender];\n    }\n\n    /**\n     * @notice Get the total number of RageQuits across all users\n     * @return The total RageQuit count\n     */\n    function getTotalRageQuits() external view returns (uint256) {\n        return totalRageQuits;\n    }\n}\n"
+      }
+    }
+  }
+}
