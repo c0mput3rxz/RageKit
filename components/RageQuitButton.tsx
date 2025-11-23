@@ -6,6 +6,7 @@ import { getSwapTransaction, getApproveTransaction, checkAllowance } from '@/lib
 import { STABLECOINS } from '@/lib/constants'
 import { useRageQuitStore } from '@/stores/useRageQuitStore'
 import { parseUnits } from 'viem'
+import type { WalletClient } from 'viem'
 
 interface RageQuitButtonProps {
   onComplete?: () => void
@@ -129,74 +130,104 @@ export function RageQuitButton({
           await new Promise(resolve => setTimeout(resolve, 1000))
         }
 
-        // Process each token on this chain
-        for (const balance of chainBalances) {
-          console.log(`💰 Processing ${balance.symbol}:`, {
-            address: balance.address,
-            amount: balance.balance,
-            rawBalance: balance.rawBalance.toString(),
-          })
-          // Skip if this is already the target stablecoin
+        // Filter out tokens that don't need swapping
+        const tokensNeedingSwap = chainBalances.filter(balance => {
           if (balance.address.toLowerCase() === targetStable.address.toLowerCase()) {
-            currentStep += 2
-            setProgress((currentStep / totalSteps) * 100)
-            continue
+            console.log(`Skipping ${balance.symbol} - already target stablecoin`)
+            return false
           }
-
-          // Skip native tokens for now (would need wrapping)
           if (balance.address === '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE') {
             console.log(`Skipping native token ${balance.symbol}`)
-            currentStep += 2
-            setProgress((currentStep / totalSteps) * 100)
-            continue
+            return false
           }
+          return true
+        })
 
-          try {
-            console.log(`✅ Checking allowance for ${balance.symbol}...`)
-            setStatus(`Checking allowance for ${balance.symbol}...`)
+        if (tokensNeedingSwap.length === 0) {
+          console.log('No tokens need swapping on this chain')
+          continue
+        }
 
-            // Check allowance
-            const allowance = await checkAllowance(
+        // PHASE 1: Batch all approvals
+        console.log('🔄 Phase 1: Batching all approvals...')
+        setStatus('Checking allowances and preparing approvals...')
+
+        const approvalsNeeded: Array<{
+          balance: typeof tokensNeedingSwap[0]
+          approveTx: { data: string; gasPrice: string; to: string; value: string }
+        }> = []
+
+        for (const balance of tokensNeedingSwap) {
+          console.log(`✅ Checking allowance for ${balance.symbol}...`)
+
+          const allowance = await checkAllowance(chain, balance.address, address)
+          console.log(`Current allowance for ${balance.symbol}: ${allowance}, needed: ${balance.rawBalance.toString()}`)
+
+          if (BigInt(allowance) < balance.rawBalance) {
+            console.log(`🔐 Approval needed for ${balance.symbol}`)
+            const approveTx = await getApproveTransaction(
               chain,
               balance.address,
-              address
+              balance.rawBalance.toString()
             )
-            console.log(`Current allowance: ${allowance}, needed: ${balance.rawBalance.toString()}`)
+            approvalsNeeded.push({ balance, approveTx })
+          } else {
+            console.log(`✅ Sufficient allowance for ${balance.symbol}`)
+            currentStep++
+            setProgress((currentStep / totalSteps) * 100)
+          }
+        }
 
-            // Approve if needed
-            if (BigInt(allowance) < balance.rawBalance) {
-              console.log(`🔐 Approval needed for ${balance.symbol}`)
-              setStatus(`Approving ${balance.symbol}...`)
+        // Execute all approvals in parallel
+        if (approvalsNeeded.length > 0) {
+          console.log(`📦 Executing ${approvalsNeeded.length} approvals in parallel...`)
+          setStatus(`Approving ${approvalsNeeded.length} token${approvalsNeeded.length > 1 ? 's' : ''}...`)
 
-              const approveTx = await getApproveTransaction(
-                chain,
-                balance.address,
-                balance.rawBalance.toString()
-              )
-              console.log('Approve transaction:', approveTx)
-
+          const approvalPromises = approvalsNeeded.map(async ({ balance, approveTx }) => {
+            try {
               const approveHash = await walletClient.sendTransaction({
                 to: approveTx.to as `0x${string}`,
                 data: approveTx.data as `0x${string}`,
                 value: BigInt(approveTx.value),
               })
-              console.log(`Approve tx hash: ${approveHash}`)
-
-              setStatus(`Waiting for approval of ${balance.symbol}...`)
-              if (publicClient) {
-                await publicClient.waitForTransactionReceipt({ hash: approveHash })
-                console.log(`Approval confirmed for ${balance.symbol}`)
-              }
-            } else {
-              console.log(`✅ Sufficient allowance for ${balance.symbol}`)
+              console.log(`Approve tx hash for ${balance.symbol}: ${approveHash}`)
+              return { balance, hash: approveHash }
+            } catch (error) {
+              console.error(`❌ Error approving ${balance.symbol}:`, error)
+              return null
             }
+          })
 
-            currentStep++
-            setProgress((currentStep / totalSteps) * 100)
+          const approvalResults = await Promise.all(approvalPromises)
 
-            // Execute swap
+          // Wait for all approvals to confirm
+          setStatus('Waiting for all approvals to confirm...')
+          const confirmationPromises = approvalResults
+            .filter(result => result !== null)
+            .map(async (result) => {
+              if (publicClient && result) {
+                try {
+                  await publicClient.waitForTransactionReceipt({ hash: result.hash })
+                  console.log(`✅ Approval confirmed for ${result.balance.symbol}`)
+                  currentStep++
+                  setProgress((currentStep / totalSteps) * 100)
+                } catch (error) {
+                  console.error(`❌ Error confirming approval for ${result.balance.symbol}:`, error)
+                }
+              }
+            })
+
+          await Promise.all(confirmationPromises)
+          console.log('✅ All approvals confirmed!')
+        }
+
+        // PHASE 2: Batch all swaps
+        console.log('🔄 Phase 2: Batching all swaps...')
+        setStatus('Preparing swaps...')
+
+        const swapPromises = tokensNeedingSwap.map(async (balance) => {
+          try {
             console.log(`🔄 Getting swap transaction for ${balance.symbol}...`)
-            setStatus(`Swapping ${balance.symbol} to ${targetStable.symbol}...`)
 
             const swapTx = await getSwapTransaction({
               chainId: chain,
@@ -204,40 +235,69 @@ export function RageQuitButton({
               dst: targetStable.address,
               amount: balance.rawBalance.toString(),
               from: address,
-              slippage: 3, // 3% slippage
+              slippage: 3,
             })
-            console.log('Swap transaction:', swapTx)
+            console.log(`Swap transaction prepared for ${balance.symbol}`)
 
-            const swapHash = await walletClient.sendTransaction({
-              to: swapTx.tx.to as `0x${string}`,
-              data: swapTx.tx.data as `0x${string}`,
-              value: BigInt(swapTx.tx.value),
-              gas: BigInt(swapTx.tx.gas),
-            })
-            console.log(`Swap tx hash: ${swapHash}`)
-
-            setStatus(`Waiting for swap of ${balance.symbol}...`)
-            if (publicClient) {
-              await publicClient.waitForTransactionReceipt({ hash: swapHash })
-              console.log(`✅ Swap confirmed for ${balance.symbol}`)
-            }
-
-            // Optimistically update balance immediately after successful swap
-            if (onOptimisticUpdate) {
-              console.log(`🔄 Optimistically updating ${balance.symbol} balance...`)
-              onOptimisticUpdate(chain, balance.address, balance.rawBalance, balance.decimals)
-            }
-
-            currentStep++
-            setProgress((currentStep / totalSteps) * 100)
-
-            console.log(`✅ Successfully swapped ${balance.symbol}`)
+            return { balance, swapTx }
           } catch (error) {
-            console.error(`❌ Error swapping ${balance.symbol}:`, error)
-            // Continue with other tokens even if one fails
-            currentStep += 2
+            console.error(`❌ Error preparing swap for ${balance.symbol}:`, error)
+            currentStep += 2 // Skip both approval and swap steps
             setProgress((currentStep / totalSteps) * 100)
+            return null
           }
+        })
+
+        const swapsToExecute = (await Promise.all(swapPromises)).filter(swap => swap !== null)
+
+        if (swapsToExecute.length > 0) {
+          console.log(`📦 Executing ${swapsToExecute.length} swaps in parallel...`)
+          setStatus(`Swapping ${swapsToExecute.length} token${swapsToExecute.length > 1 ? 's' : ''} to ${targetStable.symbol}...`)
+
+          const swapExecutionPromises = swapsToExecute.map(async ({ balance, swapTx }) => {
+            try {
+              const swapHash = await walletClient.sendTransaction({
+                to: swapTx.tx.to as `0x${string}`,
+                data: swapTx.tx.data as `0x${string}`,
+                value: BigInt(swapTx.tx.value),
+                gas: BigInt(swapTx.tx.gas),
+              })
+              console.log(`Swap tx hash for ${balance.symbol}: ${swapHash}`)
+              return { balance, hash: swapHash }
+            } catch (error) {
+              console.error(`❌ Error swapping ${balance.symbol}:`, error)
+              return null
+            }
+          })
+
+          const swapResults = await Promise.all(swapExecutionPromises)
+
+          // Wait for all swaps to confirm
+          setStatus('Waiting for all swaps to confirm...')
+          const swapConfirmationPromises = swapResults
+            .filter(result => result !== null)
+            .map(async (result) => {
+              if (publicClient && result) {
+                try {
+                  await publicClient.waitForTransactionReceipt({ hash: result.hash })
+                  console.log(`✅ Swap confirmed for ${result.balance.symbol}`)
+
+                  // Optimistically update balance
+                  if (onOptimisticUpdate) {
+                    console.log(`🔄 Optimistically updating ${result.balance.symbol} balance...`)
+                    onOptimisticUpdate(chain, result.balance.address, result.balance.rawBalance, result.balance.decimals)
+                  }
+
+                  currentStep++
+                  setProgress((currentStep / totalSteps) * 100)
+                } catch (error) {
+                  console.error(`❌ Error confirming swap for ${result.balance.symbol}:`, error)
+                }
+              }
+            })
+
+          await Promise.all(swapConfirmationPromises)
+          console.log('✅ All swaps confirmed!')
         }
       }
 

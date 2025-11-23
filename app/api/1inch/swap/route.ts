@@ -48,10 +48,14 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('1inch swap API error:', response.status, errorText)
+      console.error('1inch swap API error:', {
+        status: response.status,
+        url,
+        error: errorText,
+      })
       return NextResponse.json(
-        { error: 'Failed to get swap transaction', details: errorText },
-        { status: response.status }
+        { error: 'Failed to get swap transaction', details: errorText, status: response.status },
+        { status: 400 }
       )
     }
 

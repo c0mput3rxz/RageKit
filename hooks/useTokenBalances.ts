@@ -18,14 +18,25 @@ export function useTokenBalances() {
   const { address, isConnected } = useAccount()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isFetching, setIsFetching] = useState(false)
   const { setTokens, updateTokenBalance } = useRageQuitStore()
 
-  const fetchBalances = async () => {
-    if (!address || !isConnected) {
-      setTokens([])
+  const fetchBalances = async (force = false) => {
+    // Prevent concurrent fetches unless forced
+    if (isFetching && !force) {
+      console.log('⏭️ Skipping fetch - already fetching')
       return
     }
 
+    if (!address || !isConnected) {
+      // Don't clear tokens if we're just temporarily disconnected
+      if (force) {
+        setTokens([])
+      }
+      return
+    }
+
+    setIsFetching(true)
     setIsLoading(true)
     setError(null)
 
@@ -82,12 +93,17 @@ export function useTokenBalances() {
       setError(err instanceof Error ? err.message : 'Failed to fetch balances')
     } finally {
       setIsLoading(false)
+      setIsFetching(false)
     }
   }
 
   useEffect(() => {
-    fetchBalances()
-  }, [address, isConnected])
+    // Only fetch on initial mount or when address changes
+    // Don't refetch on every isConnected change to avoid clearing tokens during chain switches
+    if (address) {
+      fetchBalances()
+    }
+  }, [address])
 
   // Optimistically update balance after successful swap
   const updateBalanceOptimistically = (chainId: number, tokenAddress: string, amountSwapped: bigint, decimals: number) => {

@@ -59,7 +59,8 @@ export async function getSwapTransaction(params: SwapParams): Promise<SwapQuote>
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(`1inch API error: ${error.error || 'Unknown error'}`)
+    console.error('1inch swap error details:', error)
+    throw new Error(`1inch API error: ${error.error || 'Unknown error'} - ${error.details || ''}`)
   }
 
   return response.json()

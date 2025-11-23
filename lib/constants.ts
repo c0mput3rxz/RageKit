@@ -94,6 +94,16 @@ export const DEGEN_TOKENS: Record<
       symbol: 'PORK',
       decimals: 18,
     },
+    {
+      address: '0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce',
+      symbol: 'SHIB',
+      decimals: 18,
+    },
+    {
+      address: '0x1111111111166b7fe7bd91427724b487980afc69',
+      symbol: 'ZORA',
+      decimals: 18,
+    },
   ],
 }
 
