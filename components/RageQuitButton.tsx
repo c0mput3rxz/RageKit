@@ -28,14 +28,19 @@ export function RageQuitButton({
   const { getAllSelected, clearSelections } = useRageQuitStore()
 
   async function executeRageQuit() {
+    console.log('🧨 RageQuit button clicked!')
+
     if (!address || !walletClient) {
+      console.error('Wallet not connected', { address, walletClient })
       setStatus('Please connect your wallet')
       return
     }
 
     const selectedTokens = getAllSelected()
+    console.log('Selected tokens:', selectedTokens)
 
     if (selectedTokens.length === 0) {
+      console.warn('No tokens selected')
       setStatus('No tokens selected. Please select tokens to swap.')
       return
     }
@@ -55,15 +60,41 @@ export function RageQuitButton({
         )
         if (!fullBalance) return null
 
+        // Validate selectedAmount - skip if empty or invalid
+        if (!selected.selectedAmount || selected.selectedAmount.trim() === '') {
+          console.warn(`Skipping ${selected.symbol} - no amount specified`)
+          return null
+        }
+
         // Calculate the amount to swap in raw units
         const decimals = fullBalance.decimals || 18
-        const amountToSwap = parseUnits(selected.selectedAmount, decimals)
+        try {
+          const amountToSwap = parseUnits(selected.selectedAmount, decimals)
 
-        return {
-          ...fullBalance,
-          rawBalance: amountToSwap,
+          // Skip if amount is 0
+          if (amountToSwap === 0n) {
+            console.warn(`Skipping ${selected.symbol} - amount is 0`)
+            return null
+          }
+
+          return {
+            ...fullBalance,
+            rawBalance: amountToSwap,
+          }
+        } catch (error) {
+          console.error(`Invalid amount for ${selected.symbol}: ${selected.selectedAmount}`, error)
+          return null
         }
       }).filter(Boolean) as TokenBalance[]
+
+      // Check if there are any valid tokens to swap
+      if (tokensToSwap.length === 0) {
+        console.warn('No valid tokens to swap after filtering')
+        setStatus('No valid amounts to swap. Please enter amounts for selected tokens.')
+        return
+      }
+
+      console.log('Tokens to swap:', tokensToSwap)
 
       // Group balances by chain
       const balancesByChain = tokensToSwap.reduce((acc, balance) => {
@@ -74,9 +105,12 @@ export function RageQuitButton({
         return acc
       }, {} as Record<number, TokenBalance[]>)
 
+      console.log('Balances grouped by chain:', balancesByChain)
+
       // Execute swaps chain by chain
       for (const [chainId, chainBalances] of Object.entries(balancesByChain)) {
         const chain = parseInt(chainId)
+        console.log(`🔗 Processing chain ${chain} with ${chainBalances.length} tokens`)
 
         // Get target stablecoin for this chain
         const targetStable = STABLECOINS[chain]?.[0]
@@ -84,9 +118,11 @@ export function RageQuitButton({
           console.warn(`No stablecoin configured for chain ${chain}`)
           continue
         }
+        console.log(`Target stablecoin: ${targetStable.symbol} (${targetStable.address})`)
 
         // Switch to the chain if needed
         if (walletClient.chain.id !== chain) {
+          console.log(`Switching from chain ${walletClient.chain.id} to ${chain}`)
           setStatus(`Switching to chain ${chain}...`)
           await switchChain({ chainId: chain })
           // Wait a bit for the switch to complete
@@ -95,6 +131,11 @@ export function RageQuitButton({
 
         // Process each token on this chain
         for (const balance of chainBalances) {
+          console.log(`💰 Processing ${balance.symbol}:`, {
+            address: balance.address,
+            amount: balance.balance,
+            rawBalance: balance.rawBalance.toString(),
+          })
           // Skip if this is already the target stablecoin
           if (balance.address.toLowerCase() === targetStable.address.toLowerCase()) {
             currentStep += 2
@@ -111,6 +152,7 @@ export function RageQuitButton({
           }
 
           try {
+            console.log(`✅ Checking allowance for ${balance.symbol}...`)
             setStatus(`Checking allowance for ${balance.symbol}...`)
 
             // Check allowance
@@ -119,9 +161,11 @@ export function RageQuitButton({
               balance.address,
               address
             )
+            console.log(`Current allowance: ${allowance}, needed: ${balance.rawBalance.toString()}`)
 
             // Approve if needed
             if (BigInt(allowance) < balance.rawBalance) {
+              console.log(`🔐 Approval needed for ${balance.symbol}`)
               setStatus(`Approving ${balance.symbol}...`)
 
               const approveTx = await getApproveTransaction(
@@ -129,23 +173,29 @@ export function RageQuitButton({
                 balance.address,
                 balance.rawBalance.toString()
               )
+              console.log('Approve transaction:', approveTx)
 
               const approveHash = await walletClient.sendTransaction({
                 to: approveTx.to as `0x${string}`,
                 data: approveTx.data as `0x${string}`,
                 value: BigInt(approveTx.value),
               })
+              console.log(`Approve tx hash: ${approveHash}`)
 
               setStatus(`Waiting for approval of ${balance.symbol}...`)
               if (publicClient) {
                 await publicClient.waitForTransactionReceipt({ hash: approveHash })
+                console.log(`Approval confirmed for ${balance.symbol}`)
               }
+            } else {
+              console.log(`✅ Sufficient allowance for ${balance.symbol}`)
             }
 
             currentStep++
             setProgress((currentStep / totalSteps) * 100)
 
             // Execute swap
+            console.log(`🔄 Getting swap transaction for ${balance.symbol}...`)
             setStatus(`Swapping ${balance.symbol} to ${targetStable.symbol}...`)
 
             const swapTx = await getSwapTransaction({
@@ -156,6 +206,7 @@ export function RageQuitButton({
               from: address,
               slippage: 3, // 3% slippage
             })
+            console.log('Swap transaction:', swapTx)
 
             const swapHash = await walletClient.sendTransaction({
               to: swapTx.tx.to as `0x${string}`,
@@ -163,18 +214,20 @@ export function RageQuitButton({
               value: BigInt(swapTx.tx.value),
               gas: BigInt(swapTx.tx.gas),
             })
+            console.log(`Swap tx hash: ${swapHash}`)
 
             setStatus(`Waiting for swap of ${balance.symbol}...`)
             if (publicClient) {
               await publicClient.waitForTransactionReceipt({ hash: swapHash })
+              console.log(`✅ Swap confirmed for ${balance.symbol}`)
             }
 
             currentStep++
             setProgress((currentStep / totalSteps) * 100)
 
-            console.log(`Successfully swapped ${balance.symbol}`)
+            console.log(`✅ Successfully swapped ${balance.symbol}`)
           } catch (error) {
-            console.error(`Error swapping ${balance.symbol}:`, error)
+            console.error(`❌ Error swapping ${balance.symbol}:`, error)
             // Continue with other tokens even if one fails
             currentStep += 2
             setProgress((currentStep / totalSteps) * 100)

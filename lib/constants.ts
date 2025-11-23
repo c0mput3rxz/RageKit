@@ -85,11 +85,6 @@ export const DEGEN_TOKENS: Record<
       decimals: 18,
     },
     {
-      address: '0x532f27101965dd16442E59d40670FaF5eBB142E4',
-      symbol: 'BRETT',
-      decimals: 18,
-    },
-    {
       address: '0x9fE8E567eE8cE5BdB5Bb96cF5D0b0bD4F5c0b5b5',
       symbol: 'TOBY',
       decimals: 18,
