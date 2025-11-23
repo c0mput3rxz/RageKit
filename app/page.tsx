@@ -5,6 +5,7 @@ import { usePrivy } from '@privy-io/react-auth'
 import { WalletConnect } from '@/components/WalletConnect'
 import { TokenBalances } from '@/components/TokenBalances'
 import { ChainSelector } from '@/components/ChainSelector'
+import { TelegramBotCard } from '@/components/TelegramBotCard'
 import { RageQuitButton } from '@/components/RageQuitButton'
 import { useTokenBalances } from '@/hooks/useTokenBalances'
 import { useRageQuitStore } from '@/stores/useRageQuitStore'
@@ -69,12 +70,13 @@ export default function Home() {
           </div>
         ) : (
           <div className="flex-1 grid grid-cols-[320px_1fr] gap-6 overflow-hidden">
-            {/* Left Sidebar - Chain Selector */}
-            <div className="flex flex-col gap-4">
+            {/* Left Sidebar - Chain Selector & Telegram Bot */}
+            <div className="flex flex-col gap-4 overflow-y-auto">
               <ChainSelector
                 selectedChainId={targetChainId}
                 onSelectChain={setTargetChainId}
               />
+              <TelegramBotCard />
             </div>
 
             {/* Right Content Area */}
