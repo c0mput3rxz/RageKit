@@ -2,20 +2,19 @@
 
 import { useState } from 'react'
 import { useAccount, useWalletClient, useSwitchChain, usePublicClient } from 'wagmi'
-import { type TokenBalance } from '@/hooks/useTokenBalances'
 import { getSwapTransaction, getApproveTransaction, checkAllowance } from '@/lib/1inch'
 import { STABLECOINS } from '@/lib/constants'
 import { useRageQuitStore } from '@/stores/useRageQuitStore'
 import { parseUnits } from 'viem'
 
 interface RageQuitButtonProps {
-  balances: TokenBalance[]
   onComplete?: () => void
+  onOptimisticUpdate?: (chainId: number, tokenAddress: string, amountSwapped: bigint, decimals: number) => void
 }
 
 export function RageQuitButton({
-  balances,
   onComplete,
+  onOptimisticUpdate,
 }: RageQuitButtonProps) {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
@@ -25,7 +24,7 @@ export function RageQuitButton({
   const [status, setStatus] = useState<string>('')
   const [progress, setProgress] = useState(0)
 
-  const { getAllSelected, clearSelections } = useRageQuitStore()
+  const { getAllSelected, getAllTokens, clearSelections } = useRageQuitStore()
 
   async function executeRageQuit() {
     console.log('🧨 RageQuit button clicked!')
@@ -53,10 +52,11 @@ export function RageQuitButton({
       const totalSteps = selectedTokens.length * 2 // Approve + swap for each token
       let currentStep = 0
 
-      // Match selected tokens with their full balance data
+      // Match selected tokens with their full balance data from Zustand
+      const allTokens = getAllTokens()
       const tokensToSwap = selectedTokens.map(selected => {
-        const fullBalance = balances.find(
-          b => b.chainId === selected.chainId && b.address === selected.address
+        const fullBalance = allTokens.find(
+          (t) => t.chainId === selected.chainId && t.address === selected.address
         )
         if (!fullBalance) return null
 
@@ -85,7 +85,7 @@ export function RageQuitButton({
           console.error(`Invalid amount for ${selected.symbol}: ${selected.selectedAmount}`, error)
           return null
         }
-      }).filter(Boolean) as TokenBalance[]
+      }).filter(Boolean) as typeof allTokens
 
       // Check if there are any valid tokens to swap
       if (tokensToSwap.length === 0) {
@@ -103,7 +103,7 @@ export function RageQuitButton({
         }
         acc[balance.chainId].push(balance)
         return acc
-      }, {} as Record<number, TokenBalance[]>)
+      }, {} as Record<number, typeof tokensToSwap>)
 
       console.log('Balances grouped by chain:', balancesByChain)
 
@@ -222,6 +222,12 @@ export function RageQuitButton({
               console.log(`✅ Swap confirmed for ${balance.symbol}`)
             }
 
+            // Optimistically update balance immediately after successful swap
+            if (onOptimisticUpdate) {
+              console.log(`🔄 Optimistically updating ${balance.symbol} balance...`)
+              onOptimisticUpdate(chain, balance.address, balance.rawBalance, balance.decimals)
+            }
+
             currentStep++
             setProgress((currentStep / totalSteps) * 100)
 
@@ -241,10 +247,10 @@ export function RageQuitButton({
       // Clear selections after successful rage quit
       clearSelections()
 
+      // Refresh balances to show updated amounts
       if (onComplete) {
-        setTimeout(() => {
-          onComplete()
-        }, 2000)
+        console.log('🔄 Refreshing balances...')
+        onComplete()
       }
     } catch (error) {
       console.error('RageQuit error:', error)

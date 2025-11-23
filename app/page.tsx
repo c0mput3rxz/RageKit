@@ -7,11 +7,14 @@ import { TokenBalances } from '@/components/TokenBalances'
 import { ChainSelector } from '@/components/ChainSelector'
 import { RageQuitButton } from '@/components/RageQuitButton'
 import { useTokenBalances } from '@/hooks/useTokenBalances'
+import { useRageQuitStore } from '@/stores/useRageQuitStore'
 import { base } from 'wagmi/chains'
 
 export default function Home() {
   const { authenticated } = usePrivy()
-  const { balances, isLoading, refetch } = useTokenBalances()
+  const { isLoading, refetch, updateBalanceOptimistically } = useTokenBalances()
+  const { getAllTokens } = useRageQuitStore()
+  const tokens = getAllTokens()
   const [targetChainId, setTargetChainId] = useState<number>(base.id)
 
   return (
@@ -76,7 +79,7 @@ export default function Home() {
 
             {/* Right Content Area */}
             <div className="flex flex-col gap-4 overflow-hidden">
-              {balances.length > 0 && (
+              {tokens.length > 0 && (
                 <>
                   {/* Main Action Card */}
                   <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl shadow-2xl p-8">
@@ -90,8 +93,8 @@ export default function Home() {
                     </div>
 
                     <RageQuitButton
-                      balances={balances}
                       onComplete={refetch}
+                      onOptimisticUpdate={updateBalanceOptimistically}
                     />
 
                     <div className="mt-8 pt-6 border-t border-slate-800 text-sm text-center text-gray-500">
@@ -102,17 +105,17 @@ export default function Home() {
 
                   {/* Token Holdings - Compact */}
                   <div className="flex-1 overflow-y-auto">
-                    <TokenBalances balances={balances} isLoading={isLoading} />
+                    <TokenBalances isLoading={isLoading} />
                   </div>
                 </>
               )}
 
-              {balances.length === 0 && !isLoading && (
-                <TokenBalances balances={balances} isLoading={isLoading} />
+              {tokens.length === 0 && !isLoading && (
+                <TokenBalances isLoading={isLoading} />
               )}
 
               {isLoading && (
-                <TokenBalances balances={balances} isLoading={isLoading} />
+                <TokenBalances isLoading={isLoading} />
               )}
             </div>
           </div>

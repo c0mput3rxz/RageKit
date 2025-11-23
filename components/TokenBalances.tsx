@@ -1,27 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { type TokenBalance } from '@/hooks/useTokenBalances'
 import { get24hPriceChange, getHealthScore } from '@/lib/priceHealth'
-import { useRageQuitStore } from '@/stores/useRageQuitStore'
+import { useRageQuitStore, type TokenData } from '@/stores/useRageQuitStore'
 
 interface TokenBalancesProps {
-  balances: TokenBalance[]
   isLoading: boolean
 }
 
-interface TokenWithHealth extends TokenBalance {
-  priceChange24h: number | null
-}
-
 interface TokenRowProps {
-  balance: TokenWithHealth
+  balance: TokenData
   health: ReturnType<typeof getHealthScore>
   isSelected: boolean
   loadingHealth: boolean
   onToggle: (token: { chainId: number; address: string; symbol: string; balance: string }) => void
-  onAmountChange: (balance: TokenBalance, value: string) => void
-  onMaxClick: (balance: TokenBalance) => void
+  onAmountChange: (balance: TokenData, value: string) => void
+  onMaxClick: (balance: TokenData) => void
 }
 
 function TokenRow({ balance, health, isSelected, loadingHealth, onToggle, onAmountChange, onMaxClick }: TokenRowProps) {
@@ -124,51 +118,38 @@ function TokenRow({ balance, health, isSelected, loadingHealth, onToggle, onAmou
   )
 }
 
-export function TokenBalances({ balances, isLoading }: TokenBalancesProps) {
-  const [tokensWithHealth, setTokensWithHealth] = useState<TokenWithHealth[]>([])
+export function TokenBalances({ isLoading }: TokenBalancesProps) {
   const [loadingHealth, setLoadingHealth] = useState(false)
 
-  const { toggleToken, updateAmount, isTokenSelected } = useRageQuitStore()
+  const { toggleToken, updateAmount, isTokenSelected, getAllTokens, updateTokenData } = useRageQuitStore()
+  const tokens = getAllTokens()
 
-  // Auto-select all tokens when balances are first loaded
-  useEffect(() => {
-    if (balances.length === 0) return
-
-    balances.forEach(balance => {
-      // Only select if not already selected
-      if (!isTokenSelected(balance.chainId, balance.address)) {
-        toggleToken({
-          chainId: balance.chainId,
-          address: balance.address,
-          symbol: balance.symbol,
-          balance: balance.balance,
-        })
-      }
-    })
-  }, [balances, isTokenSelected, toggleToken])
-
+  // Fetch health data and update Zustand store
   useEffect(() => {
     async function fetchHealthData() {
-      if (balances.length === 0) return
+      if (tokens.length === 0) return
 
       setLoadingHealth(true)
-      const healthPromises = balances.map(async (balance) => {
-        const priceChange24h = await get24hPriceChange(balance.chainId, balance.address)
-        return {
-          ...balance,
-          priceChange24h,
-        }
+
+      // Fetch health data for all tokens
+      const healthPromises = tokens.map(async (token) => {
+        const priceChange24h = await get24hPriceChange(token.chainId, token.address)
+        // Update the token in Zustand with health data
+        updateTokenData(token.chainId, token.address, { priceChange24h })
       })
 
-      const results = await Promise.all(healthPromises)
-      setTokensWithHealth(results)
+      await Promise.all(healthPromises)
       setLoadingHealth(false)
     }
 
-    fetchHealthData()
-  }, [balances])
+    // Only fetch if tokens don't already have health data
+    const needsHealthData = tokens.some(t => t.priceChange24h === null)
+    if (needsHealthData) {
+      fetchHealthData()
+    }
+  }, [tokens.length])
 
-  const handleAmountChange = (balance: TokenBalance, value: string) => {
+  const handleAmountChange = (balance: TokenData, value: string) => {
     const key = `${balance.chainId}-${balance.address}`
     // Validate number input
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -176,7 +157,7 @@ export function TokenBalances({ balances, isLoading }: TokenBalancesProps) {
     }
   }
 
-  const handleMaxClick = (balance: TokenBalance) => {
+  const handleMaxClick = (balance: TokenData) => {
     const key = `${balance.chainId}-${balance.address}`
     updateAmount(key, balance.balance)
   }
@@ -192,7 +173,7 @@ export function TokenBalances({ balances, isLoading }: TokenBalancesProps) {
     )
   }
 
-  if (balances.length === 0) {
+  if (tokens.length === 0) {
     return (
       <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-8">
         <div className="text-center">
@@ -208,8 +189,6 @@ export function TokenBalances({ balances, isLoading }: TokenBalancesProps) {
     )
   }
 
-  const displayBalances = tokensWithHealth.length > 0 ? tokensWithHealth : balances.map(b => ({ ...b, priceChange24h: null }))
-
   return (
     <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
@@ -217,11 +196,11 @@ export function TokenBalances({ balances, isLoading }: TokenBalancesProps) {
           Your Holdings
         </h2>
         <div className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full">
-          <span className="text-red-400 font-semibold text-sm">{balances.length} tokens</span>
+          <span className="text-red-400 font-semibold text-sm">{tokens.length} tokens</span>
         </div>
       </div>
       <div className="flex flex-col gap-2">
-        {displayBalances.map((balance, index) => {
+        {tokens.map((balance, index) => {
           const health = getHealthScore(balance.priceChange24h)
           const isSelected = isTokenSelected(balance.chainId, balance.address)
 
