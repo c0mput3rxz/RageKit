@@ -6,16 +6,30 @@ import { getSwapTransaction, getApproveTransaction, checkAllowance } from '@/lib
 import { STABLECOINS } from '@/lib/constants'
 import { useRageQuitStore } from '@/stores/useRageQuitStore'
 import { parseUnits } from 'viem'
+import { base } from 'viem/chains'
 import type { WalletClient } from 'viem'
+
+const RAGEQUIT_CONTRACT = '0x2c36BB66ace498F62b1709E60b0614bA1C360c2c'
+const RAGEQUIT_ABI = [
+  {
+    inputs: [{ name: 'count', type: 'uint256' }],
+    name: 'recordBatchRageQuit',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const
 
 interface RageQuitButtonProps {
   onComplete?: () => void
   onOptimisticUpdate?: (chainId: number, tokenAddress: string, amountSwapped: bigint, decimals: number) => void
+  recordOnChain: boolean
 }
 
 export function RageQuitButton({
   onComplete,
   onOptimisticUpdate,
+  recordOnChain,
 }: RageQuitButtonProps) {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
@@ -303,6 +317,40 @@ export function RageQuitButton({
 
       setStatus('RageQuit complete! 🎉')
       setProgress(100)
+
+      // Record on-chain if enabled
+      if (recordOnChain && tokensToSwap.length > 0) {
+        try {
+          console.log('📝 Recording RageQuit on Base contract...')
+          setStatus('Recording on-chain...')
+
+          // Switch to Base if needed
+          if (walletClient.chain.id !== base.id) {
+            await switchChain({ chainId: base.id })
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+
+          // Call the contract to record the rage quit
+          const hash = await walletClient.writeContract({
+            address: RAGEQUIT_CONTRACT,
+            abi: RAGEQUIT_ABI,
+            functionName: 'recordBatchRageQuit',
+            args: [BigInt(tokensToSwap.length)],
+          })
+
+          console.log('Contract call hash:', hash)
+
+          if (publicClient) {
+            await publicClient.waitForTransactionReceipt({ hash })
+            console.log('✅ RageQuit recorded on-chain!')
+            setStatus('RageQuit recorded on-chain! 🎉')
+          }
+        } catch (error) {
+          console.error('Failed to record on-chain:', error)
+          // Don't fail the whole operation if recording fails
+          setStatus('RageQuit complete (on-chain recording failed)')
+        }
+      }
 
       // Clear selections after successful rage quit
       clearSelections()

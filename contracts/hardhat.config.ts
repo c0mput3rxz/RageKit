@@ -1,5 +1,6 @@
 import { defineConfig } from "hardhat/config";
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import "dotenv/config";
 
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin],
@@ -25,6 +26,12 @@ export default defineConfig({
     localhost: {
       type: "http",
       url: "http://127.0.0.1:8545"
+    },
+    base: {
+      type: "http",
+      url: "https://mainnet.base.org",
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 8453
     },
   }
 });

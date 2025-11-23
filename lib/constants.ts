@@ -75,7 +75,7 @@ export const DEGEN_TOKENS: Record<
 > = {
   8453: [
     {
-      address: '0x532f27101965dd16442e59d40670faf5ebb142e4',
+      address: '0x532f27101965dd16442E59d40670FaF5eBB142E4',
       symbol: 'BRETT',
       decimals: 18,
     },
@@ -85,22 +85,7 @@ export const DEGEN_TOKENS: Record<
       decimals: 18,
     },
     {
-      address: '0x9fE8E567eE8cE5BdB5Bb96cF5D0b0bD4F5c0b5b5',
-      symbol: 'TOBY',
-      decimals: 18,
-    },
-    {
-      address: '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85',
-      symbol: 'PORK',
-      decimals: 18,
-    },
-    {
-      address: '0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce',
-      symbol: 'SHIB',
-      decimals: 18,
-    },
-    {
-      address: '0x1111111111166b7fe7bd91427724b487980afc69',
+      address: '0x1111111111166b7FE7bd91427724B487980aFc69',
       symbol: 'ZORA',
       decimals: 18,
     },

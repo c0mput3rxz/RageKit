@@ -6,6 +6,7 @@ import { WalletConnect } from '@/components/WalletConnect'
 import { TokenBalances } from '@/components/TokenBalances'
 import { ChainSelector } from '@/components/ChainSelector'
 import { TelegramBotCard } from '@/components/TelegramBotCard'
+import { RageQuitStats } from '@/components/RageQuitStats'
 import { RageQuitButton } from '@/components/RageQuitButton'
 import { useTokenBalances } from '@/hooks/useTokenBalances'
 import { useRageQuitStore } from '@/stores/useRageQuitStore'
@@ -17,6 +18,7 @@ export default function Home() {
   const { getAllTokens } = useRageQuitStore()
   const tokens = getAllTokens()
   const [targetChainId, setTargetChainId] = useState<number>(base.id)
+  const [recordOnChain, setRecordOnChain] = useState(true)
 
   return (
     <div className="h-screen overflow-hidden bg-linear-to-br from-slate-950 via-red-950 to-slate-950">
@@ -77,6 +79,10 @@ export default function Home() {
                 onSelectChain={setTargetChainId}
               />
               <TelegramBotCard />
+              <RageQuitStats
+                recordOnChain={recordOnChain}
+                onToggleRecord={setRecordOnChain}
+              />
             </div>
 
             {/* Right Content Area */}
@@ -97,6 +103,7 @@ export default function Home() {
                     <RageQuitButton
                       onComplete={refetch}
                       onOptimisticUpdate={updateBalanceOptimistically}
+                      recordOnChain={recordOnChain}
                     />
 
                     <div className="mt-8 pt-6 border-t border-slate-800 text-sm text-center text-gray-500">
