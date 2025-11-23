@@ -25,7 +25,7 @@ export default function Home() {
             <div className="flex items-center gap-4 justify-center md:justify-start mb-3">
               <div className="text-6xl animate-bounce">🧨</div>
               <h1 className="text-5xl md:text-6xl font-black bg-linear-to-r from-red-400 via-orange-500 to-red-600 bg-clip-text text-transparent">
-                RageQuit Kit
+                RageKit
               </h1>
             </div>
             <p className="text-xl text-gray-300">
@@ -42,7 +42,7 @@ export default function Home() {
                 Exit Your Degen Positions
               </h2>
               <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-                RageQuit Kit helps you exit all your risky tokens into stables across chains with one button.
+                RageKit helps you exit all your risky tokens into stables across chains with one button.
               </p>
               <div className="grid md:grid-cols-3 gap-6 mt-12">
                 <div className="p-8 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl shadow-xl hover:border-red-500/50 transition-all">
@@ -77,8 +77,6 @@ export default function Home() {
           </div>
         ) : (
           <div className="flex flex-col items-center gap-8">
-            <TokenBalances balances={balances} isLoading={isLoading} />
-
             {balances.length > 0 && (
               <>
                 <ChainSelector
@@ -103,36 +101,23 @@ export default function Home() {
 
                   <div className="mt-8 pt-6 border-t border-slate-800 text-sm text-center text-gray-500">
                     <p>Powered by 1inch for optimal swap routes</p>
-                    <p className="mt-2">Default slippage: 5% (for speed when you&apos;re tilted)</p>
+                    <p className="mt-2">Default slippage: 3%</p>
                   </div>
                 </div>
+
+                <TokenBalances balances={balances} isLoading={isLoading} />
               </>
+            )}
+
+            {balances.length === 0 && !isLoading && (
+              <TokenBalances balances={balances} isLoading={isLoading} />
+            )}
+
+            {isLoading && (
+              <TokenBalances balances={balances} isLoading={isLoading} />
             )}
           </div>
         )}
-
-        <footer className="mt-20 pt-8 border-t border-slate-800 text-center text-sm text-gray-500">
-          <p>
-            Built with <span className="text-red-500">♥</span> for EthGlobal using{' '}
-            <a
-              href="https://privy.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              Privy
-            </a>{' '}
-            and{' '}
-            <a
-              href="https://1inch.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              1inch
-            </a>
-          </p>
-        </footer>
       </div>
     </div>
   )
